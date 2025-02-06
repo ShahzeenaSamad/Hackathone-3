@@ -1,121 +1,163 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import Image from "next/image";
-import Swal from "sweetalert2";
-import { urlFor } from "@/sanity/lib/image";
-import { Product } from "../../../types/products";
-import { getCartItems } from "../actions/actions";
+import React, { useEffect, useState } from 'react';
+import { Product } from '../../../types/products';
 
-export default function CheckoutPage() {
+import Swal from 'sweetalert2';
+import Link from 'next/link';
+import Image from 'next/image';
+import { urlFor } from '@/sanity/lib/image';
+import { CgChevronRight } from 'react-icons/cg';
+import { client } from '@/sanity/lib/client';
+import { getCartItems } from '../actions/actions';
+
+const CheckoutPage = () => {
   const [cartItems, setCartItems] = useState<Product[]>([]);
   const [discount, setDiscount] = useState<number>(0);
-  const [paymentMethod, setPaymentMethod] = useState("");
   const [formValues, setFormValues] = useState({
-    firstName: "",
-    lastName: "",
-    address: "",
-    city: "",
-    zipCode: "",
-    phone: "",
-    email: "",
+    firstName: '',
+    lastName: '',
+    email: '',
+    address: '',
+    shippingAddress: '',
+    city: '',
+    country: '',
+    zipCode: '',
+    phone: '',
   });
+  const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const items = getCartItems();
-    if (items) {
-      setCartItems(items);
-    }
-    const appliedDiscount = localStorage.getItem("appliedDiscount");
+    setCartItems(getCartItems() || []); // Ensure it initializes as an array
+    const appliedDiscount = localStorage.getItem('discount');
     if (appliedDiscount) {
       setDiscount(Number(appliedDiscount));
     }
   }, []);
 
-  const subtotal = cartItems.reduce((total, item) => total + item.price * item.inventory, 0);
-  const total = Math.max(subtotal - discount, 0);
+  const subTotal = cartItems.reduce((total, item) => total + item.price * item.inventory, 0);
+  const total = Math.max(subTotal - discount, 0); // Renamed for consistency
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormValues({ ...formValues, [e.target.id]: e.target.value });
   };
 
-  const handlePaymentChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setPaymentMethod(e.target.value);
-  };
-
   const validateForm = () => {
-    return Object.values(formValues).every((value) => value.trim() !== "");
+    const errors: Record<string, boolean> = {};
+    Object.keys(formValues).forEach((key) => {
+      errors[key] = !formValues[key as keyof typeof formValues];
+    });
+    setFormErrors(errors);
+    return Object.values(errors).every((error) => !error);
   };
 
-  const handlePlaceOrder = () => {
-    if (validateForm() && paymentMethod) {
+  const handlePlaceOrder = async () => {
+    if (validateForm()) {
+      localStorage.removeItem('discount');
+      Swal.fire({
+        title: 'Order Placed',
+        text: 'Your order has been placed successfully',
+        icon: 'success',
+        confirmButtonText: 'Ok',
+        width: "20%"
+      });
+    }
+
+    const orderData = {
+      _type: "order",
+      ...formValues,
+      cartItems: cartItems.map(item => ({
+        _type: "reference",
+        _ref: item._id,
+      })),
+      total: total,
+      discount: discount,
+      orderDate: new Date().toISOString(), // Fixed function call
+    };
+
+    try {
+      await client.create(orderData); // Await the API call
       localStorage.removeItem("appliedDiscount");
-      Swal.fire("Success!", "Your order has been placed.", "success");
-    } else {
-      Swal.fire("Error!", "Please fill all fields and select a payment method.", "error");
+    } catch (error) {
+      console.error("Error placing order:", error);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-12">
-      <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-6">Checkout</h2>
+    <div className="min-h-screen bg-gray-100 py-10 px-4 md:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto">
+        {/* Breadcrumb */}
+        <nav className="flex items-center gap-2 text-sm text-gray-600 mb-6">
+          <Link href="/cart" className="hover:text-black">Cart</Link>
+          <CgChevronRight className="w-4 h-4" />
+          <span>Checkout</span>
+        </nav>
 
-        <div className="mb-6 border-b pb-4 space-y-4">
-          {cartItems.length > 0 ? (
-            cartItems.map((item) => (
-              <div key={item._id} className="flex items-center gap-4 p-4 border rounded-lg shadow-sm bg-gray-50">
-                <div className="w-20 h-20 flex-shrink-0 overflow-hidden rounded-md">
-                  {item.image && (
-                    <Image
-                      src={urlFor(item.image)?.url() || "/fallback-image.jpg"}
-                      alt={item.productName}
-                      width={80}
-                      height={80}
-                      className="object-cover w-full h-full"
-                    />
+        {/* Responsive Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Order Summary */}
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
+            {cartItems.length > 0 ? (
+              cartItems.map((item) => (
+                <div key={item._id} className="flex items-center gap-4 border-b py-3">
+                  <Image 
+                    src={item.image ? urlFor(item.image).url(): '/default-image.jpg' } 
+                    alt={item.productName} 
+                    width={64} 
+                    height={64} 
+                    className="rounded object-cover w-16 h-16 sm:w-20 sm:h-20"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-sm sm:text-base font-medium">{item.productName}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500">Qty: {item.inventory}</p>
+                  </div>
+                  <p className="text-sm sm:text-base font-semibold">${(item.price * item.inventory).toFixed(2)}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500">Your cart is empty.</p>
+            )}
+            <div className="mt-4 text-right">
+              <p className="text-sm sm:text-base">Subtotal: <span className="font-semibold">${subTotal.toFixed(2)}</span></p>
+              <p className="text-sm sm:text-base">Discount: <span className="font-semibold">-${discount.toFixed(2)}</span></p>
+              <p className="text-lg sm:text-xl font-bold">Total: ${total.toFixed(2)}</p>
+            </div>
+          </div>
+
+          {/* Billing Information */}
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Billing Information</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {Object.keys(formValues).map((key) => (
+                <div key={key}>
+                  <label htmlFor={key} className="block text-sm font-medium text-gray-700">
+                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                  </label>
+                  <input
+                    id={key}
+                    value={formValues[key as keyof typeof formValues]}
+                    onChange={handleInputChange}
+                    placeholder={`Enter your ${key.replace(/([A-Z])/g, ' $1').trim().toLowerCase()}`}
+                    className={`w-full border rounded-md p-2 mt-1 text-sm sm:text-base ${formErrors[key] ? 'border-red-500' : 'border-gray-300'}`}
+                  />
+                  {formErrors[key] && (
+                    <p className="text-sm text-red-500">{key.replace(/([A-Z])/g, ' $1')} is required.</p>
                   )}
                 </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">{item.productName}</p>
-                  <p className="text-sm text-gray-600">Quantity: {item.inventory}</p>
-                </div>
-                <p className="text-lg font-semibold text-gray-800">${item.price * item.inventory}</p>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-500 text-center">Your cart is empty.</p>
-          )}
+              ))}
+            </div>
+            <button
+              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-md transition text-sm sm:text-base"
+              onClick={handlePlaceOrder}
+            >
+              Place Order
+            </button>
+          </div>
         </div>
-
-        <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-          <p>Subtotal: ${subtotal.toFixed(2)}</p>
-          <p>Discount: -${discount.toFixed(2)}</p>
-          <p className="font-bold">Total: ${total.toFixed(2)}</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <input id="firstName" placeholder="First Name" className="border p-2 w-full" onChange={handleInputChange} />
-          <input id="lastName" placeholder="Last Name" className="border p-2 w-full" onChange={handleInputChange} />
-        </div>
-        <input id="address" placeholder="Address" className="border p-2 w-full mb-4" onChange={handleInputChange} />
-        <input id="city" placeholder="City" className="border p-2 w-full mb-4" onChange={handleInputChange} />
-        <input id="zipCode" placeholder="Zip Code" className="border p-2 w-full mb-4" onChange={handleInputChange} />
-        <input id="phone" placeholder="Phone" className="border p-2 w-full mb-4" onChange={handleInputChange} />
-        <input id="email" placeholder="Email" className="border p-2 w-full mb-4" onChange={handleInputChange} />
-
-        <select className="border p-2 w-full mb-4" value={paymentMethod} onChange={handlePaymentChange}>
-          <option value="">Select Payment Method</option>
-          <option value="Credit Card">Credit Card</option>
-          <option value="PayPal">PayPal</option>
-          <option value="Cash on Delivery">Cash on Delivery</option>
-        </select>
-
-        <button className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700" onClick={handlePlaceOrder}>
-          Place Order
-        </button>
       </div>
     </div>
-  );
-}
+  ); 
+};
 
+export default CheckoutPage;

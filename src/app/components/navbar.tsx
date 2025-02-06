@@ -3,14 +3,19 @@
 import Link from "next/link";
 import Image from "next/image";
 import { FaHeart, FaShoppingBag, FaBars, FaTimes } from "react-icons/fa";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "../context/cartContext"; // Importing cart context
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 
-export default function NewNavbar() {
+export default function Navbar() {
   const { getCartCount } = useCart(); // Access cart context
   const cartCount = getCartCount(); // Get total cart count
-
   const [isMenuOpen, setIsMenuOpen] = useState(false); // State for menu toggle
+  const [mounted, setMounted] = useState(false); // Fix hydration issue
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <header className="bg-gray-100 shadow-md">
@@ -42,9 +47,17 @@ export default function NewNavbar() {
           <Link href="/contact" className="hover:text-gray-800">
             Join Us
           </Link>
-          <Link href="/login" className="hover:text-gray-800">
-            Sign In
-          </Link>
+
+          <SignedOut>
+            <SignInButton />
+          </SignedOut>
+
+          {mounted && (
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+          )}
+
           <FaHeart className="text-gray-700 text-xl cursor-pointer hover:text-black" />
           <Link href="/cart" className="relative">
             <FaShoppingBag className="text-gray-700 text-xl cursor-pointer hover:text-black" />

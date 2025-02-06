@@ -5,6 +5,7 @@ import { Product } from "../../../types/products";
 import { useRouter } from "next/navigation";
 import { FaSearch } from "react-icons/fa"; // Importing search icon for styling
 import { urlFor } from "@/sanity/lib/image";
+import Image from "next/image";
 
 interface SearchBarProps {
   products: Product[];
@@ -64,8 +65,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ products}) => {
                   {/* Product Image */}
                   <div className="w-16 h-16 bg-gray-200 rounded-md overflow-hidden">
                     {product.image && (
-                      <img
+                      <Image
                         src={urlFor(product.image).url() || "/default-image.jpg"}
+                        width={100}
+                        height={100}
                         alt={product.productName}
                         className="object-cover w-full h-full"
                       />

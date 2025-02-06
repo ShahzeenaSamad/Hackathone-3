@@ -5,8 +5,9 @@ import { urlFor } from "@/sanity/lib/image";
 import Image from "next/image";
 import ProductButton from "@/app/components/productButton";
 
+//Define the productPageProps type
 interface ProductPageProps {
-  params: { slug: string };
+  params: Promise< { slug: string }>
 }
 
 async function GetProduct(slug: string): Promise<Product | null> {
@@ -34,9 +35,10 @@ async function GetProduct(slug: string): Promise<Product | null> {
 }
 
 export default async function ProductPage({ params }: ProductPageProps) {
-  const { slug } = params;
+  const { slug } = await params;
   const product = await GetProduct(slug);
 
+  //if product is not found,return a "Not found" message
   if (!product) {
     return (
       <div className="flex flex-col items-center justify-center h-screen text-center">
@@ -46,6 +48,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     );
   }
 
+  //Return the product page with its detail
   return (
     <div className="flex flex-col items-center min-h-screen bg-gradient-to-b from-gray-100 to-gray-300 py-10 px-6">
       <div className="max-w-5xl bg-white rounded-xl shadow-xl p-8 flex flex-col md:flex-row gap-12 transform hover:scale-[1.02] transition duration-300">
